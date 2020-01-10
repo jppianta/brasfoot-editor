@@ -2,17 +2,118 @@ const io = require('java.io');
 const fs = require('fs');
 const yaml = require('js-yaml');
 
+function parseArgs(args) {
+  const func = args[0];
+  var inputFolder, outputFolder;
+
+  const iIdx = args.indexOf('-e');
+  if (iIdx >= 0) {
+    inputFolder = args[iIdx + 1];
+  }
+
+  const oIdx = args.indexOf('-s');
+  if (oIdx >= 0) {
+    outputFolder = args[oIdx + 1];
+  }
+
+  switch (func) {
+    case 'paraYaml':
+      toYamlFolder(inputFolder, outputFolder);
+      break;
+    case 'paraBrasfoot':
+      toBrasfootFolder(inputFolder, outputFolder);
+      break;
+  }
+}
+
+parseArgs(process.argv.slice(2))
+
 const InputObjectStream = io.InputObjectStream;
 const OutputObjectStream = io.OutputObjectStream;
 
+function createPlayerSerializedObj(playerYaml) {
+  return {
+    '$': {
+      'aid': playerYaml.extra.aid || 0,
+      'a': playerYaml.nome,
+      'b': playerYaml.estrela,
+      'c': playerYaml.pais,
+      'd': playerYaml.idade,
+      'e': playerYaml.posicao,
+      'f': playerYaml.titular ? 1 : 0,
+      'j': playerYaml.top_mundial,
+      'i': playerYaml.lado === 'Direito' ? 1 : 0,
+      'g': playerYaml.caracteristicas[0],
+      'h': playerYaml.caracteristicas[1],
+      'hash': playerYaml.extra.hash || 0,
+      'sid': playerYaml.extra.sid || 0,
+      'tid': playerYaml.extra.tid || 0,
+    },
+    '$class': {
+      'fields': [
+        { 'type': 'I', 'name': 'aid' },
+        { 'type': 'Z', 'name': 'b' },
+        { 'type': 'I', 'name': 'c' },
+        { 'type': 'I', 'name': 'd' },
+        { 'type': 'I', 'name': 'e' },
+        { 'type': 'I', 'name': 'f' },
+        { 'type': 'I', 'name': 'g' },
+        { 'type': 'I', 'name': 'h' },
+        { 'type': 'I', 'name': 'hash' },
+        { 'type': 'I', 'name': 'i' },
+        { 'type': 'Z', 'name': 'j' },
+        { 'type': 'I', 'name': 'sid' },
+        { 'type': 'I', 'name': 'tid' },
+        { 'type': 'L', 'name': 'a', 'classname': 'Ljava/lang/String;' }
+      ],
+      'flags': 2,
+      'name': 'e.g',
+      'serialVersionUID': '16',
+      'superClass': null
+    }
+  }
+}
+
 function createSerializedObjectFromYaml(yamlObj) {
+  const numberOfPlayers = yamlObj.jogadores && yamlObj.jogadores.length || 0;
+  const numberOfYouthPlayers = yamlObj.jogadores_base && yamlObj.jogadores_base.length || 0;
+
   const template = {
     '$': {
       'aid': 0,
       'id': 0,
       'sid': 0,
       'tid': 0,
-      'valid': true
+      'vid': 185,
+      'valid': true,
+      'l': {
+        '_$': [],
+        '$': {
+          'size': numberOfPlayers,
+          'capacity': numberOfPlayers
+        },
+        '$class': {
+          'fields': [{ 'type': 'I', 'name': 'size' }],
+          'flags': 3,
+          'name': 'java.util.ArrayList',
+          'serialVersionUID': '8683452581122892189',
+          'superClass': null
+        }
+      },
+      'm': {
+        '_$': [],
+        '$': {
+          'size': numberOfYouthPlayers,
+          'capacity': numberOfYouthPlayers
+        },
+        '$class': {
+          'fields': [{ 'type': 'I', 'name': 'size' }],
+          'flags': 3,
+          'name': 'java.util.ArrayList',
+          'serialVersionUID': '8683452581122892189',
+          'superClass': null
+        }
+      },
     },
     '$class': {
       'fields': [
@@ -76,6 +177,15 @@ function createSerializedObjectFromYaml(yamlObj) {
         template['$'].h = value.nome;
         template['$'].i = value.pais;
         break;
+      case 'poder_investimento':
+        template['$'].n = value;
+        break;
+      case 'jogadores':
+        template['$'].l['_$'] = value.map(jogador => createPlayerSerializedObj(jogador));
+        break;
+      case 'jogadores_base':
+        template['$'].m['_$'] = value.map(jogador => createPlayerSerializedObj(jogador));
+        break;
     }
   }
 
@@ -90,6 +200,45 @@ function readSerializedObj(path) {
   const buf = fs.readFileSync(path);
   const inp = new InputObjectStream(buf, true);
   return inp.readObject()
+}
+
+const extraMap = {
+  n: {},
+  o: {}
+};
+
+function addToExtraMap(data) {
+  const o = data.extra.o;
+
+  if (!extraMap.o[o]) {
+    extraMap.o[o] = [data.id];
+  } else {
+    extraMap.o[o].push(data.id);
+  }
+}
+
+function parsePlayerSerializedObject(obj) {
+  const result = {};
+  const info = obj['$'];
+  result.nome = info.a;
+  result.estrela = info.b;
+  result.pais = info.c;
+  result.idade = info.d;
+  result.posicao = info.e;
+  result.titular = info.f === 1;
+  result.top_mundial = info.j;
+  result.lado = info.i === 1 ? 'Direito' : 'Esquerdo'
+  result.caracteristicas = [
+    info.g,
+    info.h
+  ]
+  result.extra = {
+    aid: info.aid,
+    hash: info.hash,
+    sid: info.sid,
+    tid: info.tid
+  }
+  return result;
 }
 
 function createYamlFromSerializedObject(obj) {
@@ -110,8 +259,16 @@ function createYamlFromSerializedObject(obj) {
     nome: info.h,
     pais: info.i
   }
+  result.poder_investimento = info.n;
+  result.extra = {
+    id: info.id,
+    o: info.o
+  }
+
+  result.jogadores = info.l['_$'].map(info => parsePlayerSerializedObject(info));
+  result.jogadores_base = info.m['_$'].map(info => parsePlayerSerializedObject(info));
+
   return result;
-  // this.players = info.l['_$'].map(info => new Player(info, this.strengh))
 }
 
 function readYaml(path) {
@@ -123,6 +280,47 @@ function writeYamlObj(obj, path) {
   fs.writeFileSync(path, yaml.safeDump(obj))
 }
 
+function writeSerializedObj(obj, path) {
+  fs.writeFileSync(path, OutputObjectStream.writeObject(obj));
+}
+
+function toYamlFolder(inputFolder, outputFolder) {
+  fs.readdir(inputFolder, function (err, files) {
+    //handling error
+    if (err) {
+      // eslint-disable-next-line no-console
+      return console.log("Unable to scan directory: " + err);
+    }
+    //listing all files using forEach
+    files = files.filter(file => file.endsWith(".ban"));
+
+    files.forEach(file => {
+      const obj = readSerializedObj(`${inputFolder}/${file}`);
+      const yml = createYamlFromSerializedObject(obj);
+      writeYamlObj(yml, `${outputFolder}/${file.replace('.ban', '.yml')}`);
+    });
+  });
+}
+
+function toBrasfootFolder(inputFolder, outputFolder) {
+  fs.readdir(inputFolder, function (err, files) {
+    //handling error
+    if (err) {
+      // eslint-disable-next-line no-console
+      return console.log("Unable to scan directory: " + err);
+    }
+    //listing all files using forEach
+    files = files.filter(file => file.endsWith(".yml"));
+
+    files.forEach(file => {
+      const obj = readYaml(`${inputFolder}/${file}`);
+      const ser = createSerializedObjectFromYaml(obj);
+      writeSerializedObj(ser, `${outputFolder}/${file.replace('.yml', '.ban')}`);
+    });
+  });
+}
+
+
 // console.log(normalizedObj)
 
 // $ => Info
@@ -130,7 +328,7 @@ function writeYamlObj(obj, path) {
 // b => Estado do Clube
 // c => Forca Inicial do Clube
 // cor1 => Cor Principal
-// cor2 => Cor Secundaria∂
+// cor2 => Cor Secundario
 // d => ID do Clube
 // e => Nome do Clube
 // f => Nome do Estadio
@@ -139,6 +337,7 @@ function writeYamlObj(obj, path) {
 // i => Pais do Treinador
 // l => Jogadores Elenco Principal
 // m => Jogadores Base
+// n => Poder de Investimento -> Vai de 1 a 5
 
 // Jogador Elenco Principal
 // a => Nome
