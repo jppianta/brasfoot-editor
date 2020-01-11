@@ -1,0 +1,15 @@
+O uso da ferramenta requer Node, que é uma ferramenta para execução de javascript. Node pode ser instalado através de https://nodejs.org/en/.
+
+Para a execução do script basta digitar:
+
+node brasfoot_editor.js <funcao> -e <pasta-entrada> -s <pasta-saida>
+
+Funções disponiveis são:
+
+paraYaml - Traduz arquivos .ban do Brasfoot em arquivos do tipo .yml
+
+paraBrasfoot - Cria arquivo .ban do Brasfoot a partir de arquivos .yml
+
+O script é de código aberto e pode ser visto em detalhes no repositório https://github.com/jppianta/brasfoot-editor. Qualquer sugestão também é bem vinda.
+
+Qualquer dúvida, podem me contatar via email em joaopedro.pianta@gmail.com

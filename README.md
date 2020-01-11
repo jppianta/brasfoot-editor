@@ -46,7 +46,7 @@ tecnico:
 | 4 | Atacante |
 
 ## Como usar
-`node index.js <funcao> -e <pasta-entrada> -s <pasta-saida>`
+`node brasfoot_editor.js <funcao> -e <pasta-entrada> -s <pasta-saida>`
 
 Funções disponiveis são:
 
